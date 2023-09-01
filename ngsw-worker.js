@@ -133,21 +133,29 @@
 			return this.adapter.newRequest('/' + key);
 		}
 		delete(key) {
-			return this.cache.delete(this.request(key), this.cacheQueryOptions);
+			return this.cache.delete(this.request(key), this.cacheQueryOptions).catch(() => {});
 		}
 		keys() {
-			return this.cache.keys().then((requests) => requests.map((req) => req.url.slice(1)));
+			return this.cache.keys().then(
+				(requests) => requests.map((req) => req.url.slice(1)),
+				() => {},
+			);
 		}
 		read(key) {
-			return this.cache.match(this.request(key), this.cacheQueryOptions).then((res) => {
-				if (res === void 0) {
-					return Promise.reject(new NotFound(this.name, key));
-				}
-				return res.json();
-			});
+			return this.cache.match(this.request(key), this.cacheQueryOptions).then(
+				(res) => {
+					if (res === void 0) {
+						return Promise.reject(new NotFound(this.name, key));
+					}
+					return res.json();
+				},
+				() => {},
+			);
 		}
 		write(key, value) {
-			return this.cache.put(this.request(key), this.adapter.newResponse(JSON.stringify(value)));
+			return this.cache
+				.put(this.request(key), this.adapter.newResponse(JSON.stringify(value)))
+				.catch(() => {});
 		}
 	};
 
@@ -215,6 +223,7 @@ ${error.stack}`;
 	function add32(a, b) {
 		return add32to64(a, b)[1];
 	}
+
 	function add32to64(a, b) {
 		const low = (a & 65535) + (b & 65535);
 		const high = (a >>> 16) + (b >>> 16) + (low >>> 16);
@@ -321,7 +330,7 @@ ${error.stack}`;
 			const cache = await this.cache;
 			const meta = await this.metadata;
 			const req = this.adapter.newRequest(url);
-			const res = await cache.match(req, this.config.cacheQueryOptions);
+			const res = await cache.match(req, this.config.cacheQueryOptions).catch(() => {});
 			if (res === void 0) {
 				return UpdateCacheStatus.NOT_CACHED;
 			}
@@ -341,7 +350,9 @@ ${error.stack}`;
 			const url = this.adapter.normalizeUrl(req.url);
 			if (this.urls.indexOf(url) !== -1 || this.patterns.some((pattern) => pattern.test(url))) {
 				const cache = await this.cache;
-				const cachedResponse = await cache.match(req, this.config.cacheQueryOptions);
+				const cachedResponse = await cache
+					.match(req, this.config.cacheQueryOptions)
+					.catch(() => {});
 				if (cachedResponse !== void 0) {
 					if (this.hashes.has(url)) {
 						return cachedResponse;
@@ -406,7 +417,7 @@ ${error.stack}`;
 			const cache = await this.cache;
 			const metaTable = await this.metadata;
 			const request = this.adapter.newRequest(url);
-			const response = await cache.match(request, this.config.cacheQueryOptions);
+			const response = await cache.match(request, this.config.cacheQueryOptions).catch(() => {});
 			if (response === void 0) {
 				return null;
 			}
@@ -418,7 +429,7 @@ ${error.stack}`;
 		}
 		async unhashedResources() {
 			const cache = await this.cache;
-			return (await cache.keys())
+			return (await cache.keys().catch(() => {}))
 				.map((request) => this.adapter.normalizeUrl(request.url))
 				.filter((url) => !this.hashes.has(url));
 		}
@@ -437,7 +448,7 @@ ${error.stack}`;
 				}
 				try {
 					const cache = await this.cache;
-					await cache.put(req, res.clone());
+					await cache.put(req, res.clone()).catch(() => {});
 					if (!this.hashes.has(this.adapter.normalizeUrl(req.url))) {
 						const meta = { ts: this.adapter.time, used };
 						const metaTable = await this.metadata;
@@ -505,7 +516,7 @@ ${error.stack}`;
 				const hash = this.hashes.get(url);
 				const res = await updateFrom.lookupResourceWithHash(url, hash);
 				if (res !== null) {
-					await cache.put(req, res);
+					await cache.put(req, res).catch(() => {});
 					return true;
 				}
 			}
@@ -534,7 +545,8 @@ ${error.stack}`;
 			await this.urls.reduce(async (previous, url) => {
 				await previous;
 				const req = this.adapter.newRequest(url);
-				const alreadyCached = (await cache.match(req, this.config.cacheQueryOptions)) !== void 0;
+				const alreadyCached =
+					(await cache.match(req, this.config.cacheQueryOptions).catch(() => {})) !== void 0;
 				if (alreadyCached) {
 					return;
 				}
@@ -556,7 +568,7 @@ ${error.stack}`;
 						await previous;
 						const req = this.adapter.newRequest(url);
 						const alreadyCached =
-							(await cache.match(req, this.config.cacheQueryOptions)) !== void 0;
+							(await cache.match(req, this.config.cacheQueryOptions).catch(() => {})) !== void 0;
 						if (alreadyCached) {
 							return;
 						}
@@ -564,7 +576,7 @@ ${error.stack}`;
 						if (res === null || res.metadata === void 0) {
 							return;
 						}
-						await cache.put(req, res.response);
+						await cache.put(req, res.response).catch(() => {});
 						await metaTable.write(
 							req.url,
 							__spreadProps(__spreadValues({}, res.metadata), { used: false }),
@@ -582,7 +594,8 @@ ${error.stack}`;
 			await this.urls.reduce(async (previous, url) => {
 				await previous;
 				const req = this.adapter.newRequest(url);
-				const alreadyCached = (await cache.match(req, this.config.cacheQueryOptions)) !== void 0;
+				const alreadyCached =
+					(await cache.match(req, this.config.cacheQueryOptions).catch(() => {})) !== void 0;
 				if (alreadyCached) {
 					return;
 				}
@@ -835,7 +848,7 @@ ${error.stack}`;
 		}
 		async loadFromCache(req, lru) {
 			const cache = await this.cache;
-			let res = await cache.match(req, this.config.cacheQueryOptions);
+			let res = await cache.match(req, this.config.cacheQueryOptions).catch(() => {});
 			if (res !== void 0) {
 				try {
 					const ageTable = await this.ageTable;
@@ -869,7 +882,10 @@ ${error.stack}`;
 		}
 		async cleanup() {
 			await Promise.all([
-				this.cache.then((cache) => this.adapter.caches.delete(cache.name)),
+				this.cache.then(
+					(cache) => this.adapter.caches.delete(cache.name),
+					() => {},
+				),
 				this.ageTable.then((table) => this.db.delete(table.name)),
 				this.lruTable.then((table) => this.db.delete(table.name)),
 			]);
@@ -885,14 +901,12 @@ ${error.stack}`;
 		async clearCacheForUrl(url) {
 			const [cache, ageTable] = await Promise.all([this.cache, this.ageTable]);
 			await Promise.all([
-				cache.delete(
-					this.adapter.newRequest(url, { method: 'GET' }),
-					this.config.cacheQueryOptions,
-				),
-				cache.delete(
-					this.adapter.newRequest(url, { method: 'HEAD' }),
-					this.config.cacheQueryOptions,
-				),
+				cache
+					.delete(this.adapter.newRequest(url, { method: 'GET' }), this.config.cacheQueryOptions)
+					.catch(() => {}),
+				cache
+					.delete(this.adapter.newRequest(url, { method: 'HEAD' }), this.config.cacheQueryOptions)
+					.catch(() => {}),
 				ageTable.delete(url),
 			]);
 		}
